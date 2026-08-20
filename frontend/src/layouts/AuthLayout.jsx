@@ -1,0 +1,1 @@
+import {Link} from 'react-router-dom'; export default function AuthLayout({children}){return <div className="auth"><Link to="/" className="brand"><b>✦</b>FocusFlow</Link><i className="orb a"/><i className="orb b"/>{children}<footer>Made for more focused, fulfilled students.</footer></div>}
