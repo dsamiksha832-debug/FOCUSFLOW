@@ -1,6 +1,6 @@
 # FocusFlow
 
-FocusFlow is a student productivity platform designed to help students stay consistent with studying through mood tracking, Pomodoro sessions, task management, and study analytics.
+FocusFlow is a student productivity platform designed to help students stay focused through mood tracking, Pomodoro sessions, task management, and study analytics.
 
 ## Features
 
@@ -11,19 +11,6 @@ FocusFlow is a student productivity platform designed to help students stay cons
 - Streak Tracking
 - Analytics Dashboard
 
-## Tech Stack
-
-- HTML
-- CSS
-- JavaScript
-
-(Future)
-
-- React
-- Node.js
-- Express
-- MySQL
-
 ## Status
 
-🚧 Currently under development.
+🚧 Under Development
