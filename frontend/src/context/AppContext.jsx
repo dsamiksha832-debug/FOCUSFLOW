@@ -256,6 +256,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       user,
+      setUser,
       userState,
       tasks,
       habits,
