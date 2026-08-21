@@ -1,12 +1,485 @@
-import {useEffect,useState} from 'react'; import {Link,useNavigate} from 'react-router-dom'; import AuthLayout from '../layouts/AuthLayout'; import {Button,Card,Heading,Layout,Progress} from '../components/common/UI'; import {api,setSession} from '../services/api';
-const Wrap=({children})=><Layout>{children}</Layout>;
-const stats=[['◷','Focus time','2h 45m','↑ 18% from yesterday'],['✓','Tasks complete','4 / 7','3 tasks remaining'],['♨','Current streak','12 days','Your longest is 18 days'],['☻','Your mood','Grounded','Checked in this morning']];
-export function Dashboard(){const [done,setDone]=useState([true,false,false]);return <Wrap><div className="welcome"><div><p className="eyebrow">YOUR DAILY SPACE</p><h1>Good afternoon, Samiksha <em>✦</em></h1><p>Small steps add up. You’re doing beautifully today.</p></div><Button>+ Add task</Button></div><div className="stats">{stats.map((s,i)=><Card className={`stat n${i}`} key={s[1]}><span>{s[0]}</span><p>{s[1]}</p><h2>{s[2]}</h2><small>{s[3]}</small></Card>)}</div><div className="grid"><Card className="priorities"><div className="card-title"><div><h2>Today’s priorities</h2><p>Keep the momentum going.</p></div><Link to="/tasks">View all →</Link></div>{['Review chapter 6 notes','Complete chemistry lab report','Plan next week’s study blocks'].map((t,i)=><label className={done[i]?'complete':''} key={t}><input type="checkbox" checked={done[i]} onChange={()=>setDone(done.map((x,j)=>i===j?!x:x))}/><i>✓</i><span>{t}</span>{i===0&&<small>30 min</small>}</label>)}<Button variant="ghost">+ Add a new task</Button></Card><Card className="focus"><small>FOCUS SESSION</small><b>24<span>:</span>32</b><p>Deep work · Chemistry revision</p><div><button>↺</button><button className="pause">Ⅱ</button><button>↗</button></div><Progress value={58}/><small>01:28 remaining</small></Card><Card className="weekly"><div className="card-title"><div><h2>This week</h2><p>Your study rhythm is building.</p></div><b className="pill">Great pace</b></div><div className="bars">{[48,64,42,79,57,89,28].map((x,i)=><span key={i}><i className={i===5?'today':''} style={{height:`${x}%`}}/><small>{'MTWTFSS'[i]}</small></span>)}</div><p><b>8h 20m</b> focused this week <em>Goal: 10h</em></p></Card><Card className="check"><i>☀</i><div><p className="eyebrow">MINDFUL MOMENT</p><h2>How are you feeling?</h2><p>Take a quiet second to check in with yourself.</p></div><Link to="/mood">Check in →</Link></Card></div></Wrap>}
-export function Tasks(){const [items,setItems]=useState([]);const [status,setStatus]=useState('Loading your tasks…');const [newTask,setNewTask]=useState('');useEffect(()=>{api('/tasks').then(({tasks})=>{setItems(tasks);setStatus('')}).catch(error=>setStatus(error.message))},[]);async function toggle(task){try{const {task:updated}=await api(`/tasks/${task.id}`,{method:'PATCH',body:JSON.stringify({completed:!task.completed})});setItems(items.map(item=>item.id===updated.id?updated:item))}catch(error){setStatus(error.message)}}async function addTask(event){event.preventDefault();if(!newTask.trim())return;try{const {task}=await api('/tasks',{method:'POST',body:JSON.stringify({title:newTask})});setItems([...items,task]);setNewTask('')}catch(error){setStatus(error.message)}}return <Wrap><div className="task-tracker"><div className="tracker-title"><span>🙂</span><h1>Task<br/>Tracker</h1><b>✦</b><p>Time to<br/><strong>level up!</strong></p></div><div className="tracker-flow" aria-label="Task workflow"><span>research</span><i>→</i><span>plan</span><i>→</i><span>build</span><i>→</i><span>pitch</span></div><div className="tracker-progress"><b>✓</b><span/><b>✓</b><span/><b>✓</b><span/><b>□</b></div><div className="cutoff"><b>◷</b><p>DESIGN CUT-OFF AT 2:30 PM<small>Give it all you’ve got, YOU GOT this!</small></p></div><Card className="tasklist tracker-list">{items.map(task=><div className={task.completed?'complete task':''} key={task.id}><button aria-label={`Mark ${task.title} ${task.completed?'incomplete':'complete'}`} onClick={()=>toggle(task)}>{task.completed?'✓':''}</button><p><b>{task.title}</b>{task.detail&&<small>{task.detail}</small>}</p></div>)}</Card><form className="tracker-add" onSubmit={addTask}><input value={newTask} onChange={event=>setNewTask(event.target.value)} placeholder="Add a task"/><button>Add</button></form>{status&&<p className="tracker-status">{status}</p>}<div className="tracker-stars" aria-label="Five star goal">☆ ☆ ☆ ☆ ☆</div></div></Wrap>}
-export function Pomodoro(){const [run,setRun]=useState(false);return <Wrap><Heading eyebrow="FOCUS MODE" title="Give your attention a home"/><div className="two-col pom"><Card className="timer"><nav><b>Focus</b><span>Short break</span><span>Long break</span></nav><div className="ring"><b>25:00</b><small>Focus session</small></div><Button onClick={()=>setRun(!run)}>{run?'Pause session':'Start focusing'}　{run?'Ⅱ':'→'}</Button><button className="link">↺ Reset timer</button></Card><Card className="intention"><span>✦</span><p className="eyebrow">SET AN INTENTION</p><h2>What will you focus on?</h2><input defaultValue="Chemistry revision"/><div>♬ Ambient sounds <button>Rainfall ⌄</button></div></Card></div><Card className="sessions"><h2>Today’s sessions</h2><p>✓　<b>Biology notes</b><small>25 minutes · 10:15 AM</small><em>Completed</em></p><p>✓　<b>Math practice</b><small>25 minutes · 11:02 AM</small><em>Completed</em></p></Card></Wrap>}
-export function Mood(){const [m,setM]=useState('Calm');let moods=[['😄','Joyful'],['🙂','Good'],['😌','Calm'],['😕','Meh'],['😔','Low']];return <Wrap><Heading eyebrow="DAILY CHECK-IN" title="How’s your inner weather?"/><p className="intro">There’s no right answer. Naming how you feel is a small act of care.</p><Card className="mood"><h2>Right now, I feel...</h2><div>{moods.map(x=><button className={m===x[1]?'selected':''} onClick={()=>setM(x[1])} key={x[1]}><span>{x[0]}</span>{x[1]}</button>)}</div><label>Want to add a few words?<textarea placeholder="What’s on your mind?"/></label><Button>Save my check-in</Button></Card><blockquote>♡ “Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.”<small>— Thich Nhat Hanh</small></blockquote></Wrap>}
-export function Analytics(){return <Wrap><Heading eyebrow="YOUR INSIGHTS" title="Progress, not perfection" action={<button className="filter">This month ⌄</button>}/><div className="stats"><Card className="stat"><span>◷</span><p>Total focus time</p><h2>28h 15m</h2><small>↑ 12% from last month</small></Card><Card className="stat n1"><span>♨</span><p>Focus sessions</p><h2>64</h2><small>Average 26 minutes</small></Card><Card className="stat n2"><span>✓</span><p>Tasks complete</p><h2>47</h2><small>83% completion rate</small></Card></div><Card className="chart"><div className="card-title"><div><h2>Focus time</h2><p>Hours spent doing what matters.</p></div><b>28h 15m</b></div><svg viewBox="0 0 800 220" preserveAspectRatio="none"><path d="M0,185 C75,180 75,90 150,125 S250,175 320,100 S410,60 480,115 S570,25 630,80 S730,125 800,35" fill="none" stroke="#8b5cf6" strokeWidth="5"/></svg><div className="chartlabels"><span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Week 4</span></div></Card><div className="two-col"><Card><h2>Best focus window</h2><h1>10 – 12 <small>AM</small></h1><p>You’re most consistent in late morning. Protect that time.</p></Card><Card><h2>Weekly goal</h2><Progress value={78}/><p>7h 48m of 10h. Just 2h 12m to go.</p></Card></div></Wrap>}
-export function SafeSpace(){const [v,setV]=useState('');const [sent,setSent]=useState(false);return <Wrap><div className="safehero"><span>☁</span><p className="eyebrow">A QUIET CORNER</p><h1>You don’t have to carry it alone.</h1><p>A private space to pause, breathe, and put your thoughts somewhere gentle.</p></div><div className="two-col"><Card className="chat"><span>◉</span><p className="eyebrow">FLOW COMPANION</p><h2>I’m here with you.</h2><p>What feels most present for you right now?</p><div className="bubble">It’s okay to take things one thought at a time. Want to tell me a little more?</div><div><input value={v} onChange={e=>setV(e.target.value)} placeholder="Share what’s on your mind..."/><button onClick={()=>setSent(!!v)}>↑</button></div>{sent&&<small>Thank you for sharing. I’m here with you. ♡</small>}</Card><section className="tools"><p className="eyebrow">GENTLE TOOLS</p>{[['☼','Breathe with me','A 60-second reset'],['✎','Brain dump','Let it all out on paper'],['♬','Soothing sounds','A little calm for your space']].map(x=><button key={x[1]}><span>{x[0]}</span><p><b>{x[1]}</b><small>{x[2]}</small></p><i>→</i></button>)}</section></div><p className="safety">If you’re in immediate danger or thinking of harming yourself, please contact local emergency services or a crisis helpline right away.</p></Wrap>}
-export function Settings(){return <Wrap><Heading eyebrow="PREFERENCES" title="Make FocusFlow yours"/><div className="two-col settings"><Card><h2>Profile</h2><p className="profile"><i>SD</i><Button variant="secondary">Change photo</Button></p><label>Display name<input defaultValue="Samiksha Deshmukh"/></label><label>Email address<input defaultValue="sam@example.com"/></label><Button>Save changes</Button></Card><Card><h2>Focus preferences</h2><label>Default focus duration<select defaultValue="25"><option value="25">25 minutes</option><option>45 minutes</option></select></label>{['Gentle reminders','Celebration moments'].map(x=><p className="toggle" key={x}><span><b>{x}</b><small>Small nudges to care for yourself.</small></span><i/></p>)}</Card></div></Wrap>}
-export function Login({signup=false}){const go=useNavigate();const [name,setName]=useState('');const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [message,setMessage]=useState('');const [submitting,setSubmitting]=useState(false);async function submit(event){event.preventDefault();setSubmitting(true);setMessage('');try{const {user}=await api(`/auth/${signup?'signup':'login'}`,{method:'POST',body:JSON.stringify(signup?{name,email,password}:{email,password})});setSession(user);go('/tasks')}catch(error){setMessage(error.message)}finally{setSubmitting(false)}}return <AuthLayout><Card className="authcard"><span>✦</span><p className="eyebrow">WELCOME {signup?'IN':'BACK'}</p><h1>{signup?'Start your focused chapter.':'Welcome back to your flow.'}</h1><p>{signup?'A calmer, clearer way to move through student life.':'Your space is ready when you are.'}</p><form onSubmit={submit}>{signup&&<label>Full name<input value={name} onChange={event=>setName(event.target.value)} placeholder="Your name" required/></label>}<label>Email address<input value={email} onChange={event=>setEmail(event.target.value)} placeholder="you@example.com" type="email" required/></label><label>Password<input value={password} onChange={event=>setPassword(event.target.value)} type="password" placeholder="••••••••" minLength="6" required/></label>{!signup&&<a>Forgot password?</a>}<Button type="submit" disabled={submitting}>{submitting?'Please wait…':signup?'Create my account':'Continue'}　→</Button></form>{message&&<p className="form-error" role="alert">{message}</p>}<p>{signup?'Already have an account?':'New to FocusFlow?'} <Link to={signup?'/login':'/signup'}>{signup?'Log in':'Create an account'}</Link></p></Card></AuthLayout>}
-export function NotFound(){return <AuthLayout><div className="notfound"><b>404</b><h1>This page drifted away.</h1><p>Let’s get you back to a calmer corner.</p><Link to="/dashboard"><Button>Back to dashboard →</Button></Link></div></AuthLayout>}
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import AuthLayout from '../layouts/AuthLayout';
+import { Button, Card, Heading, Layout, Progress } from '../components/common/UI';
+
+const Wrap = ({ children }) => <Layout>{children}</Layout>;
+
+const stats = [
+  ['◷', 'Focus time', '2h 45m', '↑ 18% from yesterday'],
+  ['✓', 'Tasks complete', '4 / 7', '3 tasks remaining'],
+  ['♨', 'Current streak', '12 days', 'Your longest is 18 days'],
+  ['☻', 'Your mood', 'Grounded', 'Checked in this morning']
+];
+
+export function Dashboard() {
+  const [done, setDone] = useState([true, true, true, true, false, false, false]);
+  const tasksList = [
+    'Focus on checklist',
+    'Complete task of task',
+    'Chariter a task',
+    'Clean a task',
+    'Clean signups',
+    'Write documentation',
+    'Access-mentations'
+  ];
+
+  return (
+    <Wrap>
+      <div className="welcome">
+        <div>
+          <p className="eyebrow">YOUR DAILY SPACE</p>
+          <h1>Good afternoon, Samiksha <em>✦</em></h1>
+          <p>Small steps add up. You’re doing beautifully today.</p>
+        </div>
+        <Button>+ Add task</Button>
+      </div>
+
+      <div className="stats">
+        {stats.map((s, i) => (
+          <Card className={`stat n${i}`} key={s[1]}>
+            <span>{s[0]}</span>
+            <div>
+              <p>{s[1]}</p>
+              <h2>{s[2]}</h2>
+              <small>{s[3]}</small>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+          <Card className="priorities">
+            <div className="card-title">
+              <div>
+                <h2>Priority Tasks</h2>
+                <p>Keep the momentum going.</p>
+              </div>
+              <Link to="/tasks">View all →</Link>
+            </div>
+            {tasksList.map((t, i) => (
+              <label className={done[i] ? 'complete' : ''} key={t}>
+                <input
+                  type="checkbox"
+                  checked={done[i]}
+                  onChange={() => setDone(done.map((x, j) => (i === j ? !x : x)))}
+                />
+                <i>✓</i>
+                <span>{t}</span>
+                {i < 4 && <small style={{ background: '#d1fae5', color: '#059669' }}>Completed</small>}
+                {i >= 4 && <small style={{ background: '#fef3c7', color: '#d97706' }}>Pending</small>}
+              </label>
+            ))}
+            <Button variant="ghost">+ Add a new task</Button>
+          </Card>
+
+          <Card className="check">
+            <i>☀</i>
+            <div>
+              <p className="eyebrow">MINDFUL MOMENT</p>
+              <h2>How are you feeling?</h2>
+              <p>Take a quiet second to check in with yourself.</p>
+            </div>
+            <Link to="/mood">Check in →</Link>
+          </Card>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+          <Card className="focus">
+            <small>FOCUS SESSION</small>
+            <b>25<span>:</span>00</b>
+            <p>Deep work · Chemistry revision</p>
+            <div>
+              <button title="Reset">↺</button>
+              <button className="pause" title="Start/Pause">Ⅱ</button>
+              <button title="Fullscreen">↗</button>
+            </div>
+            <Progress value={58} />
+            <small style={{ display: 'block', marginTop: '12px' }}>14:28 remaining</small>
+          </Card>
+
+          <Card className="weekly">
+            <div className="card-title">
+              <div>
+                <h2>Weekly study rhythm</h2>
+                <p>Daily study hours for last week</p>
+              </div>
+              <b className="pill">Great pace</b>
+            </div>
+            <div className="bars">
+              {[68, 55, 78, 52, 70, 92, 40].map((x, i) => (
+                <span key={i}>
+                  <i className={i === 5 ? 'today' : ''} style={{ height: `${x}%` }} />
+                  <small>{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}</small>
+                </span>
+              ))}
+            </div>
+            <p>
+              <b>8h 20m</b> focused this week <em>Goal: 10h</em>
+            </p>
+          </Card>
+
+          <Card className="mood-quick">
+            <h2>Mood check-in</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+              {[
+                ['😄', 'Happy'],
+                ['🧐', 'Focused'],
+                ['😉', 'Productive']
+              ].map(([emoji, label]) => (
+                <button
+                  key={label}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justify: 'center',
+                    padding: '16px',
+                    borderRadius: '16px',
+                    border: '1px solid #e2e8f0',
+                    background: 'white',
+                    fontWeight: '700',
+                    gap: '6px'
+                  }}
+                >
+                  <span style={{ fontSize: '32px' }}>{emoji}</span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </Wrap>
+  );
+}
+
+export function Tasks() {
+  const [items, setItems] = useState([
+    { t: 'Finish calculus assignment', d: 'Due today', x: false },
+    { t: 'Read biology chapter 8', d: '45 min', x: true },
+    { t: 'Outline history essay', d: 'Tomorrow', x: false },
+    { t: 'Practice presentation', d: 'This week', x: false }
+  ]);
+  return (
+    <Wrap>
+      <Heading eyebrow="TASK TRACKER" title="Make space for what matters" action={<Button>+ New task</Button>} />
+      <div className="two-col">
+        <Card className="tasklist">
+          <div className="tabs">
+            <b>My tasks <i>4</i></b>
+            <span>Upcoming</span>
+            <span>Completed</span>
+          </div>
+          {items.map((a, i) => (
+            <div className={a.x ? 'complete task' : ''} key={a.t}>
+              <button onClick={() => setItems(items.map((x, j) => (j === i ? { ...x, x: !x.x } : x)))}>
+                {a.x ? '✓' : ''}
+              </button>
+              <p>
+                <b>{a.t}</b>
+                <small>{a.d}</small>
+              </p>
+              <em>•••</em>
+            </div>
+          ))}
+        </Card>
+        <Card className="taskprogress">
+          <p className="eyebrow">TODAY’S PROGRESS</p>
+          <div className="donut">
+            <span>1<small>/4</small></span>
+          </div>
+          <h2>One task down</h2>
+          <p>That’s a gentle start. Keep going at your own pace.</p>
+          <Progress value={25} />
+        </Card>
+      </div>
+    </Wrap>
+  );
+}
+
+export function Pomodoro() {
+  const [run, setRun] = useState(false);
+  return (
+    <Wrap>
+      <Heading eyebrow="FOCUS MODE" title="Give your attention a home" />
+      <div className="two-col pom">
+        <Card className="timer">
+          <nav>
+            <b>Focus</b>
+            <span>Short break</span>
+            <span>Long break</span>
+          </nav>
+          <div className="ring">
+            <b>25:00</b>
+            <small>Focus session</small>
+          </div>
+          <Button onClick={() => setRun(!run)}>{run ? 'Pause session' : 'Start focusing'}　{run ? 'Ⅱ' : '→'}</Button>
+          <button className="link">↺ Reset timer</button>
+        </Card>
+        <Card className="intention">
+          <span>✦</span>
+          <p className="eyebrow">SET AN INTENTION</p>
+          <h2>What will you focus on?</h2>
+          <input defaultValue="Chemistry revision" />
+          <div>
+            ♬ Ambient sounds <button>Rainfall ⌄</button>
+          </div>
+        </Card>
+      </div>
+      <Card className="sessions">
+        <h2>Today’s sessions</h2>
+        <p>
+          ✓　<b>Biology notes</b><small>25 minutes · 10:15 AM</small><em>Completed</em>
+        </p>
+        <p>
+          ✓　<b>Math practice</b><small>25 minutes · 11:02 AM</small><em>Completed</em>
+        </p>
+      </Card>
+    </Wrap>
+  );
+}
+
+export function Mood() {
+  const [m, setM] = useState('Calm');
+  let moods = [
+    ['😄', 'Joyful'],
+    ['🙂', 'Good'],
+    ['😌', 'Calm'],
+    ['😕', 'Meh'],
+    ['😔', 'Low']
+  ];
+  return (
+    <Wrap>
+      <Heading eyebrow="DAILY CHECK-IN" title="How’s your inner weather?" />
+      <p className="intro">There’s no right answer. Naming how you feel is a small act of care.</p>
+      <Card className="mood">
+        <h2>Right now, I feel...</h2>
+        <div>
+          {moods.map((x) => (
+            <button className={m === x[1] ? 'selected' : ''} onClick={() => setM(x[1])} key={x[1]}>
+              <span>{x[0]}</span>
+              {x[1]}
+            </button>
+          ))}
+        </div>
+        <label>
+          Want to add a few words?
+          <textarea placeholder="What’s on your mind?" />
+        </label>
+        <Button>Save my check-in</Button>
+      </Card>
+      <blockquote style={{ marginTop: '24px' }}>
+        ♡ “Feelings come and go like clouds in a windy sky. Conscious breathing is my anchor.”
+        <small>— Thich Nhat Hanh</small>
+      </blockquote>
+    </Wrap>
+  );
+}
+
+export function Analytics() {
+  return (
+    <Wrap>
+      <Heading eyebrow="YOUR INSIGHTS" title="Progress, not perfection" action={<button className="filter">This month ⌄</button>} />
+      <div className="stats">
+        <Card className="stat">
+          <span>◷</span>
+          <p>Total focus time</p>
+          <h2>28h 15m</h2>
+          <small>↑ 12% from last month</small>
+        </Card>
+        <Card className="stat n1">
+          <span>♨</span>
+          <p>Focus sessions</p>
+          <h2>64</h2>
+          <small>Average 26 minutes</small>
+        </Card>
+        <Card className="stat n2">
+          <span>✓</span>
+          <p>Tasks complete</p>
+          <h2>47</h2>
+          <small>83% completion rate</small>
+        </Card>
+        <Card className="stat n3">
+          <span>☻</span>
+          <p>Streak</p>
+          <h2>12 Days</h2>
+          <small>Personal Best!</small>
+        </Card>
+      </div>
+      <Card className="chart">
+        <div className="card-title">
+          <div>
+            <h2>Focus time trend</h2>
+            <p>Hours spent doing what matters.</p>
+          </div>
+          <b>28h 15m</b>
+        </div>
+        <svg viewBox="0 0 800 220" preserveAspectRatio="none">
+          <path d="M0,185 C75,180 75,90 150,125 S250,175 320,100 S410,60 480,115 S570,25 630,80 S730,125 800,35" fill="none" stroke="#8b5cf6" strokeWidth="5" />
+        </svg>
+        <div className="chartlabels">
+          <span>Week 1</span>
+          <span>Week 2</span>
+          <span>Week 3</span>
+          <span>Week 4</span>
+        </div>
+      </Card>
+      <div className="two-col">
+        <Card>
+          <h2>Best focus window</h2>
+          <h1>10 – 12 <small style={{ fontSize: '18px', color: '#8b5cf6' }}>AM</small></h1>
+          <p>You’re most consistent in late morning. Protect that time.</p>
+        </Card>
+        <Card>
+          <h2>Weekly goal</h2>
+          <Progress value={78} />
+          <p style={{ marginTop: '12px' }}>7h 48m of 10h. Just 2h 12m to go.</p>
+        </Card>
+      </div>
+    </Wrap>
+  );
+}
+
+export function SafeSpace() {
+  const [v, setV] = useState('');
+  const [sent, setSent] = useState(false);
+  return (
+    <Wrap>
+      <div className="safehero">
+        <span>☁</span>
+        <p className="eyebrow">A QUIET CORNER</p>
+        <h1>You don’t have to carry it alone.</h1>
+        <p>A private space to pause, breathe, and put your thoughts somewhere gentle.</p>
+      </div>
+      <div className="two-col">
+        <Card className="chat">
+          <span>◉</span>
+          <p className="eyebrow">FLOW COMPANION</p>
+          <h2>I’m here with you.</h2>
+          <p>What feels most present for you right now?</p>
+          <div className="bubble">It’s okay to take things one thought at a time. Want to tell me a little more?</div>
+          <div>
+            <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Share what’s on your mind..." />
+            <button onClick={() => setSent(!!v)}>↑</button>
+          </div>
+          {sent && <small>Thank you for sharing. I’m here with you. ♡</small>}
+        </Card>
+        <section className="tools">
+          <p className="eyebrow">GENTLE TOOLS</p>
+          {[
+            ['☼', 'Breathe with me', 'A 60-second reset'],
+            ['✎', 'Brain dump', 'Let it all out on paper'],
+            ['♬', 'Soothing sounds', 'A little calm for your space']
+          ].map((x) => (
+            <button key={x[1]}>
+              <span>{x[0]}</span>
+              <p>
+                <b>{x[1]}</b>
+                <small>{x[2]}</small>
+              </p>
+              <i>→</i>
+            </button>
+          ))}
+        </section>
+      </div>
+      <p className="safety">If you’re in immediate danger or thinking of harming yourself, please contact local emergency services or a crisis helpline right away.</p>
+    </Wrap>
+  );
+}
+
+export function Settings() {
+  return (
+    <Wrap>
+      <Heading eyebrow="PREFERENCES" title="Make FocusFlow yours" />
+      <div className="two-col settings">
+        <Card>
+          <h2>Profile</h2>
+          <p className="profile">
+            <i>SD</i>
+            <Button variant="secondary">Change photo</Button>
+          </p>
+          <label>
+            Display name
+            <input defaultValue="Samiksha Deshmukh" />
+          </label>
+          <label>
+            Email address
+            <input defaultValue="sam@example.com" />
+          </label>
+          <Button>Save changes</Button>
+        </Card>
+        <Card>
+          <h2>Focus preferences</h2>
+          <label>
+            Default focus duration
+            <select defaultValue="25">
+              <option value="25">25 minutes</option>
+              <option value="45">45 minutes</option>
+            </select>
+          </label>
+          {['Gentle reminders', 'Celebration moments'].map((x) => (
+            <p className="toggle" key={x}>
+              <span>
+                <b>{x}</b>
+                <small>Small nudges to care for yourself.</small>
+              </span>
+              <i />
+            </p>
+          ))}
+        </Card>
+      </div>
+    </Wrap>
+  );
+}
+
+export function Login({ signup = false }) {
+  const go = useNavigate();
+  return (
+    <AuthLayout>
+      <Card className="authcard">
+        <span>✦</span>
+        <p className="eyebrow">WELCOME {signup ? 'IN' : 'BACK'}</p>
+        <h1>{signup ? 'Start your focused chapter.' : 'Welcome back to your flow.'}</h1>
+        <p>{signup ? 'A calmer, clearer way to move through student life.' : 'Your space is ready when you are.'}</p>
+        {signup && (
+          <label>
+            Full name
+            <input placeholder="Your name" />
+          </label>
+        )}
+        <label>
+          Email address
+          <input placeholder="you@example.com" />
+        </label>
+        <label>
+          Password
+          <input type="password" placeholder="••••••••" />
+        </label>
+        {!signup && <a href="#">Forgot password?</a>}
+        <Button onClick={() => go('/dashboard')}>{signup ? 'Create my account' : 'Continue'}　→</Button>
+        <div className="or">—　or continue with　—</div>
+        <button className="google">G　 Google</button>
+        <p>
+          {signup ? 'Already have an account?' : 'New to FocusFlow?'} <Link to={signup ? '/login' : '/signup'}>{signup ? 'Log in' : 'Create an account'}</Link>
+        </p>
+      </Card>
+    </AuthLayout>
+  );
+}
+
+export function NotFound() {
+  return (
+    <AuthLayout>
+      <div className="notfound">
+        <b>404</b>
+        <h1>This page drifted away.</h1>
+        <p>Let’s get you back to a calmer corner.</p>
+        <Link to="/dashboard">
+          <Button>Back to dashboard →</Button>
+        </Link>
+      </div>
+    </AuthLayout>
+  );
+}

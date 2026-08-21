@@ -1,105 +1,367 @@
-import { createHash, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
-import { createServer } from 'node:http'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { createHash, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createServer } from 'node:http';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const port = Number(process.env.PORT || 3001)
-const dataFile = join(dirname(fileURLToPath(import.meta.url)), 'data', 'db.json')
+const PORT = Number(process.env.PORT || 3001);
+const dataFile = join(dirname(fileURLToPath(import.meta.url)), 'data', 'db.json');
+
 const defaultTasks = [
-  ['Assign team roles', '9:00 AM · NAILED IT!', true],
-  ['Finalise app concept', '', true],
-  ['Build 5 mockup screens', '', false],
-  ['Create pitch slides', '', false],
-]
+  { title: 'Complete Calculus Chapter 4 Review', category: 'Study', priority: 'High', detail: 'Solve all odd-numbered problems in Section 4.2', completed: false },
+  { title: 'Outline DBMS Term Paper', category: 'Project', priority: 'Medium', detail: 'Draft ER diagrams & normalization steps', completed: false },
+  { title: '30-Minute Morning Reading Session', category: 'Personal', priority: 'Low', detail: 'Read Atomic Habits Chapter 3', completed: true },
+  { title: 'Prepare DSA Lab Presentation', category: 'Exam', priority: 'High', detail: 'Build visual slides on Graph Traversal algorithms', completed: false }
+];
+
+const defaultHabits = [
+  { id: 'h1', title: 'Daily Workout / Stretch', category: 'Health', streak: 5, history: ['2026-08-20', '2026-08-21'] },
+  { id: 'h2', title: 'Read 20 Pages', category: 'Mindset', streak: 8, history: ['2026-08-20', '2026-08-21'] },
+  { id: 'h3', title: 'Hydrate 2.5L Water', category: 'Health', streak: 12, history: ['2026-08-20', '2026-08-21'] },
+  { id: 'h4', title: 'Journal Reflection', category: 'Mindfulness', streak: 3, history: ['2026-08-21'] }
+];
+
+const defaultMissions = [
+  { id: 'm1', title: 'Complete 3 Daily Tasks', target: 3, progress: 1, xpReward: 100, completed: false },
+  { id: 'm2', title: 'Focus for 60 Minutes', target: 60, progress: 30, xpReward: 120, completed: false },
+  { id: 'm3', title: 'Log Your Daily Mood', target: 1, progress: 0, xpReward: 50, completed: false }
+];
 
 async function loadDb() {
-  try { return JSON.parse(await readFile(dataFile, 'utf8')) }
-  catch (error) {
-    if (error.code !== 'ENOENT') throw error
-    const db = { users: [], tasks: [], moods: [], focusSessions: [] }
-    await saveDb(db)
-    return db
+  try {
+    const data = await readFile(dataFile, 'utf8');
+    const db = JSON.parse(data);
+    if (!Array.isArray(db.users)) db.users = [];
+    if (!Array.isArray(db.tasks)) db.tasks = [];
+    if (!Array.isArray(db.habits)) db.habits = [];
+    if (!Array.isArray(db.moods)) db.moods = [];
+    if (!Array.isArray(db.focusSessions)) db.focusSessions = [];
+    if (!db.userStates || typeof db.userStates !== 'object') db.userStates = {};
+    return db;
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+    const initialDb = {
+      users: [],
+      tasks: [],
+      habits: [],
+      moods: [],
+      focusSessions: [],
+      userStates: {}
+    };
+    await saveDb(initialDb);
+    return initialDb;
   }
 }
+
 async function saveDb(db) {
-  await mkdir(dirname(dataFile), { recursive: true })
-  await writeFile(dataFile, JSON.stringify(db, null, 2))
-}
-function passwordHash(password) { return scryptSync(password, 'focusflow-local-salt', 64).toString('hex') }
-function sessionToken(user) { return createHash('sha256').update(`${user.id}:${user.passwordHash}`).digest('hex') }
-function publicUser(user) { return { id: user.id, name: user.name, email: user.email, token: sessionToken(user) } }
-function json(response, status, body) {
-  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': 'http://localhost:5173', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS' })
-  response.end(JSON.stringify(body))
-}
-function error(response, status, message) { json(response, status, { error: message }) }
-async function body(request) {
-  let raw = ''
-  for await (const chunk of request) raw += chunk
-  try { return raw ? JSON.parse(raw) : {} } catch { throw new Error('Invalid JSON') }
-}
-function currentUser(request, db) {
-  const token = request.headers.authorization?.replace('Bearer ', '')
-  return db.users.find((user) => token && timingSafeEqual(Buffer.from(sessionToken(user)), Buffer.from(token)))
+  await mkdir(dirname(dataFile), { recursive: true });
+  await writeFile(dataFile, JSON.stringify(db, null, 2));
 }
 
-const server = createServer(async (request, response) => {
-  if (request.method === 'OPTIONS') return json(response, 204, {})
+function hashPassword(password) {
+  return scryptSync(password, 'focusflow-salt-2026', 64).toString('hex');
+}
+
+function generateToken(user) {
+  return createHash('sha256').update(`${user.id}:${user.passwordHash}`).digest('hex');
+}
+
+function safeUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    token: generateToken(user)
+  };
+}
+
+function jsonResponse(res, statusCode, payload) {
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS'
+  });
+  res.end(JSON.stringify(payload));
+}
+
+function errorResponse(res, statusCode, message) {
+  jsonResponse(res, statusCode, { error: message });
+}
+
+async function parseBody(req) {
+  let bodyStr = '';
+  for await (const chunk of req) {
+    bodyStr += chunk;
+  }
   try {
-    const url = new URL(request.url, `http://${request.headers.host}`)
-    const db = await loadDb()
-    if (request.method === 'GET' && url.pathname === '/api/health') return json(response, 200, { status: 'ok' })
-    if (request.method === 'POST' && url.pathname === '/api/auth/signup') {
-      const { name, email, password } = await body(request)
-      if (!name?.trim() || !email?.trim() || !password || password.length < 6) return error(response, 400, 'Name, email, and a password of at least 6 characters are required.')
-      if (db.users.some((user) => user.email.toLowerCase() === email.trim().toLowerCase())) return error(response, 409, 'An account already exists for this email.')
-      const user = { id: randomUUID(), name: name.trim(), email: email.trim().toLowerCase(), passwordHash: passwordHash(password) }
-      db.users.push(user)
-      db.tasks.push(...defaultTasks.map(([title, detail, completed], position) => ({ id: randomUUID(), userId: user.id, title, detail, completed, position })))
-      await saveDb(db)
-      return json(response, 201, { user: publicUser(user) })
-    }
-    if (request.method === 'POST' && url.pathname === '/api/auth/login') {
-      const { email, password } = await body(request)
-      const user = db.users.find((item) => item.email === email?.trim().toLowerCase())
-      if (!user || !timingSafeEqual(Buffer.from(user.passwordHash), Buffer.from(passwordHash(password || '')))) return error(response, 401, 'Incorrect email or password.')
-      return json(response, 200, { user: publicUser(user) })
-    }
-    const user = currentUser(request, db)
-    if (!user) return error(response, 401, 'Please log in first.')
-    if (request.method === 'GET' && url.pathname === '/api/tasks') return json(response, 200, { tasks: db.tasks.filter((task) => task.userId === user.id).sort((a, b) => a.position - b.position) })
-    if (request.method === 'POST' && url.pathname === '/api/tasks') {
-      const { title, detail = '' } = await body(request)
-      if (!title?.trim()) return error(response, 400, 'A task title is required.')
-      const task = { id: randomUUID(), userId: user.id, title: title.trim(), detail, completed: false, position: db.tasks.filter((item) => item.userId === user.id).length }
-      db.tasks.push(task); await saveDb(db); return json(response, 201, { task })
-    }
-    const taskMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)$/)
-    if (request.method === 'PATCH' && taskMatch) {
-      const task = db.tasks.find((item) => item.id === taskMatch[1] && item.userId === user.id)
-      if (!task) return error(response, 404, 'Task not found.')
-      const updates = await body(request)
-      if (typeof updates.completed === 'boolean') task.completed = updates.completed
-      if (typeof updates.title === 'string' && updates.title.trim()) task.title = updates.title.trim()
-      if (typeof updates.detail === 'string') task.detail = updates.detail
-      await saveDb(db); return json(response, 200, { task })
-    }
-    if (request.method === 'GET' && url.pathname === '/api/moods') return json(response, 200, { moods: db.moods.filter((mood) => mood.userId === user.id) })
-    if (request.method === 'POST' && url.pathname === '/api/moods') {
-      const { mood, note = '' } = await body(request)
-      if (!mood?.trim()) return error(response, 400, 'A mood is required.')
-      const entry = { id: randomUUID(), userId: user.id, mood: mood.trim(), note, createdAt: new Date().toISOString() }
-      db.moods.push(entry); await saveDb(db); return json(response, 201, { mood: entry })
-    }
-    if (request.method === 'POST' && url.pathname === '/api/focus-sessions') {
-      const { minutes, intention = '' } = await body(request)
-      if (!Number.isFinite(minutes) || minutes <= 0) return error(response, 400, 'A positive session length is required.')
-      const session = { id: randomUUID(), userId: user.id, minutes, intention, createdAt: new Date().toISOString() }
-      db.focusSessions.push(session); await saveDb(db); return json(response, 201, { session })
-    }
-    return error(response, 404, 'Endpoint not found.')
-  } catch (caught) { return error(response, 400, caught.message || 'Something went wrong.') }
-})
+    return bodyStr ? JSON.parse(bodyStr) : {};
+  } catch {
+    throw new Error('Invalid JSON input');
+  }
+}
 
-server.listen(port, () => console.log(`FocusFlow API running at http://localhost:${port}`))
+function getAuthenticatedUser(req, db) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.replace('Bearer ', '').trim();
+  return db.users.find(u => {
+    const userToken = generateToken(u);
+    return userToken.length === token.length && timingSafeEqual(Buffer.from(userToken), Buffer.from(token));
+  });
+}
+
+function getDefaultUserState(userId) {
+  return {
+    userId,
+    xp: 350,
+    level: 2,
+    streak: 6,
+    unlockedThemes: ['glass', 'dark'],
+    activeTheme: 'glass',
+    activePet: 'fox',
+    petHappiness: 85,
+    soundEffects: true,
+    ambientSound: 'none',
+    achievements: ['first_task', 'first_focus', 'mood_checkin']
+  };
+}
+
+const server = createServer(async (req, res) => {
+  if (req.method === 'OPTIONS') {
+    return jsonResponse(res, 204, {});
+  }
+
+  try {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const db = await loadDb();
+
+    // Healthcheck
+    if (req.method === 'GET' && url.pathname === '/api/health') {
+      return jsonResponse(res, 200, { status: 'ok', time: new Date().toISOString() });
+    }
+
+    // Signup
+    if (req.method === 'POST' && url.pathname === '/api/auth/signup') {
+      const { name, email, password } = await parseBody(req);
+      if (!name?.trim() || !email?.trim() || !password || password.length < 4) {
+        return errorResponse(res, 400, 'Name, valid email, and password (at least 4 chars) required.');
+      }
+      const normalizedEmail = email.trim().toLowerCase();
+      if (db.users.some(u => u.email === normalizedEmail)) {
+        return errorResponse(res, 409, 'An account already exists with this email address.');
+      }
+
+      const user = {
+        id: randomUUID(),
+        name: name.trim(),
+        email: normalizedEmail,
+        passwordHash: hashPassword(password),
+        createdAt: new Date().toISOString()
+      };
+
+      db.users.push(user);
+      db.userStates[user.id] = getDefaultUserState(user.id);
+
+      // Seed default tasks & habits for new user
+      defaultTasks.forEach((t, i) => {
+        db.tasks.push({ id: randomUUID(), userId: user.id, ...t, createdAt: new Date().toISOString(), position: i });
+      });
+
+      defaultHabits.forEach(h => {
+        db.habits.push({ ...h, userId: user.id });
+      });
+
+      await saveDb(db);
+      return jsonResponse(res, 201, { user: safeUser(user), state: db.userStates[user.id] });
+    }
+
+    // Login
+    if (req.method === 'POST' && url.pathname === '/api/auth/login') {
+      const { email, password } = await parseBody(req);
+      const normalizedEmail = (email || '').trim().toLowerCase();
+      const user = db.users.find(u => u.email === normalizedEmail);
+
+      if (!user) {
+        return errorResponse(res, 401, 'Invalid email or password.');
+      }
+
+      const hash = hashPassword(password || '');
+      if (hash.length !== user.passwordHash.length || !timingSafeEqual(Buffer.from(hash), Buffer.from(user.passwordHash))) {
+        return errorResponse(res, 401, 'Invalid email or password.');
+      }
+
+      const userState = db.userStates[user.id] || getDefaultUserState(user.id);
+      return jsonResponse(res, 200, { user: safeUser(user), state: userState });
+    }
+
+    // Authenticated routes check
+    const currentUser = getAuthenticatedUser(req, db);
+    if (!currentUser && url.pathname.startsWith('/api/')) {
+      return errorResponse(res, 401, 'Authentication token missing or invalid.');
+    }
+
+    // Get User State
+    if (req.method === 'GET' && url.pathname === '/api/user/state') {
+      const state = db.userStates[currentUser.id] || getDefaultUserState(currentUser.id);
+      return jsonResponse(res, 200, { state, missions: defaultMissions });
+    }
+
+    // Update User State (e.g. active theme, XP gain, pet change)
+    if (req.method === 'PATCH' && url.pathname === '/api/user/state') {
+      const updates = await parseBody(req);
+      const currentState = db.userStates[currentUser.id] || getDefaultUserState(currentUser.id);
+      db.userStates[currentUser.id] = { ...currentState, ...updates };
+      await saveDb(db);
+      return jsonResponse(res, 200, { state: db.userStates[currentUser.id] });
+    }
+
+    // Tasks API
+    if (req.method === 'GET' && url.pathname === '/api/tasks') {
+      const userTasks = db.tasks.filter(t => t.userId === currentUser.id);
+      return jsonResponse(res, 200, { tasks: userTasks });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/tasks') {
+      const { title, detail = '', category = 'Study', priority = 'Medium' } = await parseBody(req);
+      if (!title?.trim()) return errorResponse(res, 400, 'Task title is required.');
+
+      const newTask = {
+        id: randomUUID(),
+        userId: currentUser.id,
+        title: title.trim(),
+        detail,
+        category,
+        priority,
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+
+      db.tasks.push(newTask);
+      await saveDb(db);
+      return jsonResponse(res, 201, { task: newTask });
+    }
+
+    const taskMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)$/);
+    if (taskMatch) {
+      const taskId = taskMatch[1];
+      const taskIndex = db.tasks.findIndex(t => t.id === taskId && t.userId === currentUser.id);
+      if (taskIndex === -1) return errorResponse(res, 404, 'Task not found.');
+
+      if (req.method === 'PATCH') {
+        const updates = await parseBody(req);
+        db.tasks[taskIndex] = { ...db.tasks[taskIndex], ...updates };
+        await saveDb(db);
+        return jsonResponse(res, 200, { task: db.tasks[taskIndex] });
+      }
+
+      if (req.method === 'DELETE') {
+        db.tasks.splice(taskIndex, 1);
+        await saveDb(db);
+        return jsonResponse(res, 200, { success: true, id: taskId });
+      }
+    }
+
+    // Habits API
+    if (req.method === 'GET' && url.pathname === '/api/habits') {
+      const userHabits = db.habits.filter(h => h.userId === currentUser.id);
+      return jsonResponse(res, 200, { habits: userHabits });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/habits/toggle') {
+      const { habitId, date } = await parseBody(req);
+      const habit = db.habits.find(h => h.id === habitId && h.userId === currentUser.id);
+      if (!habit) return errorResponse(res, 404, 'Habit not found.');
+
+      const todayStr = date || new Date().toISOString().split('T')[0];
+      const idx = habit.history.indexOf(todayStr);
+      if (idx >= 0) {
+        habit.history.splice(idx, 1);
+        habit.streak = Math.max(0, habit.streak - 1);
+      } else {
+        habit.history.push(todayStr);
+        habit.streak += 1;
+      }
+
+      await saveDb(db);
+      return jsonResponse(res, 200, { habit });
+    }
+
+    // Moods API
+    if (req.method === 'GET' && url.pathname === '/api/moods') {
+      const userMoods = db.moods.filter(m => m.userId === currentUser.id);
+      return jsonResponse(res, 200, { moods: userMoods });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/moods') {
+      const { mood, note = '', energy = 3, focus = 3 } = await parseBody(req);
+      if (!mood?.trim()) return errorResponse(res, 400, 'Mood selection is required.');
+
+      const entry = {
+        id: randomUUID(),
+        userId: currentUser.id,
+        mood: mood.trim(),
+        note: note.trim(),
+        energy,
+        focus,
+        createdAt: new Date().toISOString()
+      };
+
+      db.moods.push(entry);
+      await saveDb(db);
+      return jsonResponse(res, 201, { mood: entry });
+    }
+
+    // Focus Sessions API
+    if (req.method === 'GET' && url.pathname === '/api/focus-sessions') {
+      const sessions = db.focusSessions.filter(s => s.userId === currentUser.id);
+      return jsonResponse(res, 200, { sessions });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/focus-sessions') {
+      const { minutes, intention = '', mode = 'pomodoro', rating = 5 } = await parseBody(req);
+      if (!Number.isFinite(minutes) || minutes <= 0) return errorResponse(res, 400, 'Valid session duration required.');
+
+      const session = {
+        id: randomUUID(),
+        userId: currentUser.id,
+        minutes,
+        intention: intention.trim(),
+        mode,
+        rating,
+        createdAt: new Date().toISOString()
+      };
+
+      db.focusSessions.push(session);
+
+      // Award XP to user
+      const userState = db.userStates[currentUser.id] || getDefaultUserState(currentUser.id);
+      const xpGained = Math.round(minutes * 2);
+      userState.xp += xpGained;
+
+      await saveDb(db);
+      return jsonResponse(res, 201, { session, xpGained, totalXp: userState.xp });
+    }
+
+    return errorResponse(res, 404, 'Endpoint not found.');
+  } catch (err) {
+    console.error('Server error:', err);
+    return errorResponse(res, 500, err.message || 'Internal server error');
+  }
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    const ALT_PORT = PORT + 1;
+    console.log(`Port ${PORT} in use, trying ${ALT_PORT}...`);
+    server.listen(ALT_PORT, () => {
+      console.log(`🚀 FocusFlow API Server running at http://localhost:${ALT_PORT}`);
+    });
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`🚀 FocusFlow API Server running at http://localhost:${PORT}`);
+});
