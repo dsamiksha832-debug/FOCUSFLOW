@@ -109,6 +109,6 @@ Open your browser and navigate to `http://localhost:5173`!
 
 ---
 
-## 📄 License
-
-Distributed under the MIT License. Built for students & focus enthusiasts.
+## CURRENT STATUS
+---------------------------------------------------------
+IN PROCESSS....
