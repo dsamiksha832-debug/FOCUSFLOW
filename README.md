@@ -83,31 +83,6 @@ FocusFlow/
 
 ---
 
-## 🚀 Quick Start Guide
-
-### Prerequisites
-- Node.js (v18 or higher)
-- npm
-
-### 1. Start the Backend API Server
-```powershell
-cd backend
-npm install
-node server.js
-```
-*The server will start at `http://localhost:3001` (or port `3002` if 3001 is occupied).*
-
-### 2. Start the Frontend Application
-Open a new terminal window:
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Open your browser and navigate to `http://localhost:5173`!
-
----
 
 ## CURRENT STATUS
 ---------------------------------------------------------
